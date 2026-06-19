@@ -1,0 +1,11 @@
+--- a/app/order_service.py
++++ b/app/order_service.py
+@@ -52,3 +52,8 @@
+         )
+     order.status = new_status
+     return order
++
++
++def count_items(order: Order) -> int:
++    """Return the total quantity of units across all line items."""
++    return sum(item.quantity for item in order.items)

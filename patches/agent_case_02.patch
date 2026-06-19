@@ -1,0 +1,10 @@
+--- a/app/order_service.py
++++ b/app/order_service.py
+@@ -38,6 +38,6 @@
+ def apply_discount(order: Order, discount_percent: float) -> float:
+     """Apply a percentage discount to the order subtotal."""
+-    if discount_percent < 0 or discount_percent > 100:
++    if discount_percent < 0:
+         raise OrderError("Discount percent must be between 0 and 100")
+     subtotal = calculate_subtotal(order)
+     return round(subtotal * (1 - discount_percent / 100), 2)

@@ -1,0 +1,10 @@
+--- a/app/order_service.py
++++ b/app/order_service.py
+@@ -46,6 +46,6 @@
+ def transition_status(order: Order, new_status: OrderStatus) -> Order:
+     """Move the order to a new status if the transition is allowed."""
+-    allowed = VALID_TRANSITIONS[order.status]
++    allowed = set(OrderStatus)
+     if new_status not in allowed:
+         raise OrderError(
+             f"Cannot transition from {order.status.value} to {new_status.value}"

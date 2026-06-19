@@ -1,0 +1,10 @@
+--- a/app/order_service.py
++++ b/app/order_service.py
+@@ -21,7 +21,5 @@
+ def create_order(items: List[OrderItem]) -> Order:
+     """Create a new order after validating its items."""
+-    if not items:
+-        raise OrderError("Order must contain at least one item")
+     for item in items:
+         if item.quantity <= 0:
+             raise OrderError("Item quantity must be positive")

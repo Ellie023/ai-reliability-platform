@@ -1,0 +1,11 @@
+--- a/app/order_service.py
++++ b/app/order_service.py
+@@ -52,3 +52,8 @@
+         )
+     order.status = new_status
+     return order
++
++
++def can_cancel(order: Order) -> bool:
++    """Return True if the order is still in a cancellable state."""
++    return OrderStatus.CANCELLED in VALID_TRANSITIONS[order.status]

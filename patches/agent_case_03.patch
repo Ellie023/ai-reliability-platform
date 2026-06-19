@@ -1,0 +1,9 @@
+--- a/app/order_service.py
++++ b/app/order_service.py
+@@ -25,6 +25,4 @@
+     for item in items:
+         if item.quantity <= 0:
+             raise OrderError("Item quantity must be positive")
+-        if item.unit_price < 0:
+-            raise OrderError("Item unit price must not be negative")
+     return Order(items=list(items), status=OrderStatus.PENDING)
