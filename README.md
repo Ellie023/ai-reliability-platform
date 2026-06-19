@@ -1,5 +1,13 @@
 # AI Reliability Platform
 
+[![Repo](https://img.shields.io/badge/GitHub-ai--reliability--platform-181717?logo=github)](https://github.com/Ellie023/ai-reliability-platform)
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-dashboard-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![Tests](https://img.shields.io/badge/tests-18%20passing-brightgreen?logo=pytest&logoColor=white)](sample_repo/tests/test_order_service.py)
+
+> Repository: **https://github.com/Ellie023/ai-reliability-platform**
+
 An end-to-end harness that evaluates **AI-agent-generated code patches** for
 reliability. It applies each patch to an isolated copy of a small FastAPI
 **Order API**, runs the test suite, detects regressions, classifies the
