@@ -8,6 +8,7 @@ For every patch in ``patches/`` this script:
   4. diffs the result against the (cached) baseline run,
   5. classifies any regression,
   6. generates a root-cause hypothesis,
+  7. computes a numeric risk score,
 
 and finally writes:
 
@@ -16,6 +17,15 @@ and finally writes:
   * ``reports/report.md``     - human-readable Markdown report
 
 Run it with:  ``python evaluator/generate_report.py``
+
+Risk score rules
+----------------
+* regression detected ......... +50
+* per failing test ............ +10  (failed_tests count * 10)
+* test run timed out .......... +20
+* touches >= 3 files .......... +10
+
+Risk levels: HIGH >= 50 / MEDIUM >= 20 / LOW otherwise
 """
 from __future__ import annotations
 
@@ -26,11 +36,71 @@ from pathlib import Path
 # Allow running as a script (``python evaluator/generate_report.py``).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from apply_patch import PROJECT_ROOT, SAMPLE_REPO, apply_patch, make_work_copy  # noqa: E402
+from apply_patch import (  # noqa: E402
+    PROJECT_ROOT,
+    SAMPLE_REPO,
+    apply_patch,
+    count_changed_files,
+    make_work_copy,
+)
 from classify_failure import classify_failure  # noqa: E402
 from detect_regression import detect_regression  # noqa: E402
 from generate_hypothesis import generate_hypothesis  # noqa: E402
 from run_tests import run_tests  # noqa: E402
+
+_HIGH_RISK_THRESHOLD = 50
+_MEDIUM_RISK_THRESHOLD = 20
+
+
+def compute_risk_score(
+    *,
+    has_regression: bool,
+    failed_test_count: int,
+    timed_out: bool,
+    changed_files: int,
+) -> dict:
+    """Return ``{risk_score, risk_level, breakdown}`` for one patch.
+
+    Scoring:
+      - regression present  → +50
+      - per failing test    → +10 each
+      - timed out           → +20
+      - >= 3 changed files  → +10
+    """
+    score = 0
+    breakdown: dict[str, int] = {}
+
+    if has_regression:
+        breakdown["regression"] = 50
+        score += 50
+
+    if failed_test_count:
+        pts = failed_test_count * 10
+        breakdown["failed_tests"] = pts
+        score += pts
+
+    if timed_out:
+        breakdown["timeout"] = 20
+        score += 20
+
+    if changed_files >= 3:
+        breakdown["changed_files"] = 10
+        score += 10
+
+    if score >= _HIGH_RISK_THRESHOLD:
+        level = "HIGH"
+    elif score >= _MEDIUM_RISK_THRESHOLD:
+        level = "MEDIUM"
+    else:
+        level = "LOW"
+
+    return {
+        "risk_score": score,
+        "risk_level": level,
+        "breakdown": breakdown,
+        "changed_files": changed_files,
+        "timed_out": timed_out,
+    }
 
 PATCHES_DIR = PROJECT_ROOT / "patches"
 RESULTS_DIR = PROJECT_ROOT / "results"
@@ -64,6 +134,13 @@ def evaluate_patch(patch_path: Path, baseline: dict) -> dict:
     classification = classify_failure(regression, patched)
     hypothesis = generate_hypothesis(classification, regression)
 
+    risk = compute_risk_score(
+        has_regression=regression["has_regression"],
+        failed_test_count=patched.get("failed", 0),
+        timed_out=patched.get("timed_out", False),
+        changed_files=count_changed_files(patch_path),
+    )
+
     return {
         "case": case,
         "patch_file": patch_path.name,
@@ -73,6 +150,7 @@ def evaluate_patch(patch_path: Path, baseline: dict) -> dict:
         "regression": regression,
         "classification": classification,
         "hypothesis": hypothesis,
+        "risk": risk,
         "patched_summary": {
             "passed": patched.get("passed", 0),
             "failed": patched.get("failed", 0),
@@ -92,17 +170,30 @@ def _write_markdown(baseline: dict, results: list[dict]) -> str:
     # Summary table
     lines.append("## Summary")
     lines.append("")
-    lines.append("| Case | Patch | Verdict | Failed tests | Category | Severity |")
-    lines.append("|------|-------|---------|--------------|----------|----------|")
-    for r in results:
+    lines.append("| Case | Patch | Verdict | Failed tests | Category | Severity | Risk |")
+    lines.append("|------|-------|---------|--------------|----------|----------|------|")
+    for r in sorted(results, key=lambda x: x["risk"]["risk_score"], reverse=True):
         cls = r["classification"]
         hyp = r["hypothesis"]
+        risk = r["risk"]
         n_failed = len(r["regression"].get("newly_failing", []))
         lines.append(
             f"| {r['case']} | {r['patch_file']} | **{r['verdict']}** | "
-            f"{n_failed} | {cls.get('label', '-')} | {hyp.get('severity', '-')} |"
+            f"{n_failed} | {cls.get('label', '-')} | {hyp.get('severity', '-')} | "
+            f"{risk['risk_score']} ({risk['risk_level']}) |"
         )
     lines.append("")
+
+    # High-risk callout
+    high = [r for r in results if r["risk"]["risk_level"] == "HIGH"]
+    if high:
+        lines.append("## ⚠️ High-risk patches")
+        lines.append("")
+        for r in sorted(high, key=lambda x: x["risk"]["risk_score"], reverse=True):
+            risk = r["risk"]
+            parts = ", ".join(f"{k} +{v}" for k, v in risk["breakdown"].items())
+            lines.append(f"- **{r['case']}** — risk **{risk['risk_score']}** ({parts})")
+        lines.append("")
 
     # Per-case detail
     lines.append("## Details")
@@ -117,6 +208,9 @@ def _write_markdown(baseline: dict, results: list[dict]) -> str:
         if reg.get("newly_passing"):
             lines.append(f"- **Newly passing tests:** {', '.join(reg['newly_passing'])}")
         hyp = r["hypothesis"]
+        risk = r["risk"]
+        lines.append(f"- **Risk score:** {risk['risk_score']} ({risk['risk_level']})"
+                     f"  |  breakdown: {risk['breakdown'] or 'none'}")
         lines.append(f"- **Classification:** {r['classification'].get('label')}")
         lines.append(f"- **Severity:** {hyp.get('severity')}  |  "
                      f"**Confidence:** {hyp.get('confidence')}")
@@ -154,7 +248,9 @@ def main() -> None:
             json.dumps(result, indent=2), encoding="utf-8"
         )
         print(f"    -> {result['verdict']} "
-              f"({result['classification'].get('label')})")
+              f"({result['classification'].get('label')}) "
+              f"| risk={result['risk']['risk_score']} "
+              f"({result['risk']['risk_level']})")
 
     summary = {
         "baseline": {
@@ -172,6 +268,9 @@ def main() -> None:
                 "severity": r["hypothesis"].get("severity"),
                 "confidence": r["hypothesis"].get("confidence"),
                 "newly_failing": r["regression"].get("newly_failing", []),
+                "risk_score": r["risk"]["risk_score"],
+                "risk_level": r["risk"]["risk_level"],
+                "risk_breakdown": r["risk"]["breakdown"],
             }
             for r in results
         ],
@@ -180,6 +279,7 @@ def main() -> None:
             "regressions": sum(1 for r in results if r["verdict"] == "REGRESSION"),
             "safe": sum(1 for r in results if r["verdict"] in ("SAFE", "IMPROVEMENT")),
             "broken": sum(1 for r in results if r["verdict"] == "BROKEN"),
+            "high_risk": sum(1 for r in results if r["risk"]["risk_level"] == "HIGH"),
         },
     }
     (RESULTS_DIR / "summary.json").write_text(

@@ -63,6 +63,34 @@ def main() -> None:
 
     st.divider()
 
+    # ---- High Risk Patches -------------------------------------------------
+    high_risk = [c for c in summary["cases"] if c.get("risk_level") == "HIGH"]
+    if high_risk:
+        st.subheader("⚠️ High Risk Patches")
+        st.error(
+            f"{len(high_risk)} patch(es) scored HIGH risk — review before merging."
+        )
+        hr_rows = []
+        for c in sorted(high_risk, key=lambda x: x.get("risk_score", 0), reverse=True):
+            breakdown = c.get("risk_breakdown") or {}
+            parts = ", ".join(f"{k} +{v}" for k, v in breakdown.items()) or "—"
+            hr_rows.append(
+                {
+                    "Case": c["case"],
+                    "Verdict": c["verdict"],
+                    "Risk Score": c.get("risk_score", 0),
+                    "Breakdown": parts,
+                    "Severity": c.get("severity", "—"),
+                    "Newly Failing": len(c.get("newly_failing", [])),
+                }
+            )
+        st.dataframe(
+            pd.DataFrame(hr_rows),
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.divider()
+
     # ---- Overview table ----------------------------------------------------
     st.subheader("Patch overview")
     rows = []
