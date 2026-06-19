@@ -5,6 +5,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-dashboard-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Tests](https://img.shields.io/badge/tests-18%20passing-brightgreen?logo=pytest&logoColor=white)](sample_repo/tests/test_order_service.py)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > Repository: **https://github.com/Ellie023/ai-reliability-platform**
 
@@ -97,3 +98,7 @@ uvicorn app.main:app --reload
 6. **Hypothesize** — emit a root cause, impact, severity and suggested fix.
 
 A patch is `SAFE` only if it introduces **zero** new failing tests.
+
+## License
+
+Released under the [MIT License](LICENSE).
